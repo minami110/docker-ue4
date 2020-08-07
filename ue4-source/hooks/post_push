@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# 4.25.3 to 4.25
+CUR_VERSION=${DOCKER_TAG}
+NEW_VERSION=`echo ${CUR_VERSION} | ( IFS=".$IFS" ; read a b c && echo $a.$b )`
+
+
+docker tag ${IMAGE_NAME} ${DOCKER_REPO}:${NEW_VERSION}
+docker push ${DOCKER_REPO}:${NEW_VERSION}
