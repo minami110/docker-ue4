@@ -1,10 +1,3 @@
-
-# FROM kaeru109/ue4-installedbuild:4.25.3-android
-# FROM kaeru109/ue4-installedbuild:4.25-android
-
-#=================================================
-# args 
-#=================================================
 ARG UE4_VERSION
 ARG UBUNTU_VERSION
 
@@ -87,14 +80,16 @@ COPY InstalledEngineBuild.xml Engine/Build/
 
 ENV UE4_ROOT="/home/ue4/engine/"
 
-#===== Make UE4 Installed Build =====#
-RUN \
-    # Setup.sh を実行
-    ./Setup.sh && \
-    # Make InstalledBuild Linux
-    # 本当はこのコマンドだけでいいのだけど, キャッシュを使いつつ見ていたので
-    # NodeごとにBuildGraphを実行している
-    # /home/ue4/source/LocalBuilds/Engine/Linux に展開される
+#===================================================
+# Make UE4 Installed Build 
+# 1.Setup.sh を実行
+#
+# 2. Make InstalledBuild Linux
+# /home/ue4/source/LocalBuilds/Engine/Linux に展開される
+#
+# 3. InstalledBuildのディレクトリをクリーンアップする,
+#===================================================
+RUN ./Setup.sh && \
     ./Engine/Build/BatchFiles/RunUAT.sh BuildGraph \
     -script="Engine/Build/InstalledEngineBuild.xml" \
     -target="Make Installed Build Linux" \
@@ -104,10 +99,6 @@ RUN \
     -Set:WithDDC=false \
     -Set:GameConfigurations="Development;Shipping" \
     -Set:WithFullDebugInfo=false && \
-    # InstalledBuildのディレクトリをクリーンアップする,
-    # CI環境に必要ないものを削除している
-    # /home/ue4/source/LocalBuilds/Engine/Linux -> /de
-    # remove /FeaturePacks and /Templates
     rm -rf ./LocalBuilds/Engine/Linux/FeaturePacks/ && \ 
     rm -rf ./LocalBuilds/Engine/Linux/Templates/ && \
     rm -rf ./LocalBuilds/Engine/Linux/Samples/ && \
