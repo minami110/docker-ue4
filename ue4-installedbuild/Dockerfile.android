@@ -1,0 +1,115 @@
+
+# FROM kaeru109/ue4-installedbuild:4.25.3-android
+# FROM kaeru109/ue4-installedbuild:4.25-android
+
+#=================================================
+# args 
+#=================================================
+ARG UE4_VERSION
+ARG UBUNTU_VERSION
+
+#=================================================
+# STAGE: ue4-source
+# /source ディレクトリに成果物がある
+#=================================================
+FROM kaeru109/ue4-source:${UE4_VERSION} AS ue4-source
+
+#=================================================
+# STAGE: ue4-android-sdk
+# /sdk ディレクトリに成果物がある
+#=================================================
+FROM kaeru109/ue4-android-sdk:${UE4_VERSION} AS ue4-android-sdk
+
+#=================================
+# STAGE: ue4-installedbuild
+# BuildGraphを利用して, Unreal EngineのInstalledBuildを作成する
+# /dest ディレクトリに成果物がある
+#============================
+FROM ubuntu:${UBUNTU_VERSION} AS ue4-installedbuild
+
+ARG OPENJDK_VERSION
+
+# Disable interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# install packages
+# openjdk は Android環境専用で必要
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    curl \
+    shared-mime-info \
+    tzdata \
+    unzip \
+    xdg-user-dirs \
+    zip \
+    openjdk-${OPENJDK_VERSION}-jre
+
+# Since UE4 refuses to build or run as the root user under Linux
+# create a non-root user: ue4
+RUN useradd --create-home --home /home/ue4 --shell /bin/bash --uid 1000 ue4 && \
+    usermod -a -G audio,video ue4
+USER ue4
+
+#=========================
+# Android 向けの設定
+# see Engine/Extras/Android/SetupAndroid.sh
+# あらかじめ環境変数に入れて置かなければ, UE4でAndroid向けのコンパイルができない
+# NDKROOT はエンジン本体のビルドに必要で, それ以外は検証していない
+
+ARG NDK_VERSION
+ARG BUILD_TOOLS_VERSION
+
+ENV ANDROID_HOME=/home/ue4/sdk \
+    JAVA_HOME=/usr/lib/jvm/java-${OPENJDK_VERSION}-openjdk-amd64/jre/ 
+
+COPY --from=ue4-android-sdk --chown=ue4:ue4 /sdk ${ANDROID_HOME}
+
+ENV NDKROOT=${ANDROID_HOME}/ndk/${NDK_VERSION} \
+    NDK_ROOT=${NDKROOT} \
+    PATH=${PATH}:${ANDROID_HOME}/platform-tools:${ANDROID_HOME}/build-tools/${BUILD_TOOLS_VERSION}:${ANDROID_HOME}/tools/bin
+
+#============================
+
+ENV _UE4_SOURCE=/home/ue4/source
+
+# Copy ue4 source from stage:ue4-source
+COPY --from=ue4-source --chown=ue4:ue4 /source ${_UE4_SOURCE}
+
+# set WORKDIR is /home/ue4/source
+WORKDIR ${_UE4_SOURCE}
+
+#===== Start UE4 Build =====#
+# Override ue4 default InstalledBuild graph for UE4GameAndroid
+# Android版でなければ, デフォルトのものを利用して良い
+COPY InstalledEngineBuild.xml Engine/Build/
+
+ENV UE4_ROOT="/home/ue4/engine/"
+
+#===== Make UE4 Installed Build =====#
+RUN \
+    # Setup.sh を実行
+    ./Setup.sh && \
+    # Make InstalledBuild Linux
+    # 本当はこのコマンドだけでいいのだけど, キャッシュを使いつつ見ていたので
+    # NodeごとにBuildGraphを実行している
+    # /home/ue4/source/LocalBuilds/Engine/Linux に展開される
+    ./Engine/Build/BatchFiles/RunUAT.sh BuildGraph \
+    -script="Engine/Build/InstalledEngineBuild.xml" \
+    -target="Make Installed Build Linux" \
+    -Set:WithLinux=true \
+    -Set:WithLinuxAArch64=false \
+    -Set:WithAndroid=true \
+    -Set:WithDDC=false \
+    -Set:GameConfigurations="Development;Shipping" \
+    -Set:WithFullDebugInfo=false && \
+    # InstalledBuildのディレクトリをクリーンアップする,
+    # CI環境に必要ないものを削除している
+    # /home/ue4/source/LocalBuilds/Engine/Linux -> /de
+    # remove /FeaturePacks and /Templates
+    rm -rf ./LocalBuilds/Engine/Linux/FeaturePacks/ && \ 
+    rm -rf ./LocalBuilds/Engine/Linux/Templates/ && \
+    rm -rf ./LocalBuilds/Engine/Linux/Samples/ && \
+    mv ./LocalBuilds/Engine/Linux/ ${UE4_ROOT} && \
+    rm -rf ${_UE4_SOURCE}

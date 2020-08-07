@@ -1,0 +1,79 @@
+
+#=================================================
+# args 
+#=================================================
+ARG UE4_VERSION
+ARG UBUNTU_VERSION
+
+#=================================================
+# STAGE: ue4-source
+# /source ディレクトリに成果物がある
+#=================================================
+FROM kaeru109/ue4-source:${UE4_VERSION} AS ue4-source
+
+#=================================
+# STAGE: ue4-installedbuild
+# BuildGraphを利用して, Unreal EngineのInstalledBuildを作成する
+# /dest ディレクトリに成果物がある
+#============================
+FROM ubuntu:${UBUNTU_VERSION} AS ue4-installedbuild
+
+
+# Disable interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# install packages
+# openjdk は Android環境専用で必要
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    curl \
+    shared-mime-info \
+    tzdata \
+    unzip \
+    xdg-user-dirs \
+    zip 
+
+# Since UE4 refuses to build or run as the root user under Linux
+# create a non-root user: ue4
+RUN useradd --create-home --home /home/ue4 --shell /bin/bash --uid 1000 ue4 && \
+    usermod -a -G audio,video ue4
+USER ue4
+
+ENV _UE4_SOURCE=/home/ue4/source
+
+# Copy ue4 source from stage:ue4-source
+COPY --from=ue4-source --chown=ue4:ue4 /source ${_UE4_SOURCE}
+
+# set WORKDIR is /home/ue4/source
+WORKDIR ${_UE4_SOURCE}
+
+ENV UE4_ROOT="/home/ue4/engine/"
+
+#===== Make UE4 Installed Build =====#
+RUN \
+    # Setup.sh を実行
+    ./Setup.sh && \
+    # Make InstalledBuild Linux
+    # 本当はこのコマンドだけでいいのだけど, キャッシュを使いつつ見ていたので
+    # NodeごとにBuildGraphを実行している
+    # /home/ue4/source/LocalBuilds/Engine/Linux に展開される
+    ./Engine/Build/BatchFiles/RunUAT.sh BuildGraph \
+    -script="Engine/Build/InstalledEngineBuild.xml" \
+    -target="Make Installed Build Linux" \
+    -Set:WithLinux=true \
+    -Set:WithLinuxAArch64=false \
+    -Set:WithAndroid=false \
+    -Set:WithDDC=false \
+    -Set:GameConfigurations="Development;Shipping" \
+    -Set:WithFullDebugInfo=false && \
+    # InstalledBuildのディレクトリをクリーンアップする,
+    # CI環境に必要ないものを削除している
+    # /home/ue4/source/LocalBuilds/Engine/Linux -> /de
+    # remove /FeaturePacks and /Templates
+    rm -rf ./LocalBuilds/Engine/Linux/FeaturePacks/ && \ 
+    rm -rf ./LocalBuilds/Engine/Linux/Templates/ && \
+    rm -rf ./LocalBuilds/Engine/Linux/Samples/ && \
+    mv ./LocalBuilds/Engine/Linux/ ${UE4_ROOT} && \
+    rm -rf ${_UE4_SOURCE}
