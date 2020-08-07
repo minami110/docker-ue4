@@ -1,9 +1,8 @@
-ARG ALPINE_VERSION="3.11.6"
+FROM alpine:3.11.6 as builder
 
-FROM alpine:${ALPINE_VERSION} as builder
-
+ARG GIT_REPO
 ARG UE4_TAG
-ARG GIT_REPO="github.com/EpicGames/UnrealEngine.git"
+ARG GIT_TOKEN
 
 # update dnf and install git
 RUN apk update && \
@@ -19,6 +18,6 @@ RUN git clone --depth=1 --branch=${UE4_TAG} \
     rm -rf /source/.git/
 
 # use multi-stage build
-FROM alpine:${ALPINE_VERSION}
+FROM alpine:3.11.6
 
 COPY --from=builder /source /source

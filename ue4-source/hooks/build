@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# GIT_TOKEN set from DockerHub build configration
 export GIT_REPO="github.com/EpicGames/UnrealEngine.git"
 export UE4_TAG="4.25.3-release"
 
