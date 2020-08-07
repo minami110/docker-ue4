@@ -1,0 +1,13 @@
+#!/bin/bash
+
+export GIT_REPO="github.com/EpicGames/UnrealEngine.git"
+export UE4_TAG="4.25.3-release"
+
+# build image
+docker build \
+--tag ${IMAGE_NAME} \
+--build-arg GIT_TOKEN=${GIT_TOKEN} \
+--build-arg GIT_REPO=${GIT_REPO} \
+--build-arg UE4_TAG=${UE4_TAG} \
+--no-cache \
+.

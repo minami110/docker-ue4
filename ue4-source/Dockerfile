@@ -2,8 +2,7 @@ ARG ALPINE_VERSION="3.11.6"
 
 FROM alpine:${ALPINE_VERSION} as builder
 
-ARG GIT_TOKEN
-ARG UE4_TAG=
+ARG UE4_TAG
 ARG GIT_REPO="github.com/EpicGames/UnrealEngine.git"
 
 # update dnf and install git
