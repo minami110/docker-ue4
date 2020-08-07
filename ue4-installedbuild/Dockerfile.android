@@ -89,7 +89,7 @@ ENV UE4_ROOT="/home/ue4/engine/"
 #
 # 3. InstalledBuildのディレクトリをクリーンアップする,
 #===================================================
-RUN ./Setup.sh && \
+RUN ./Setup.sh >/dev/null && \
     ./Engine/Build/BatchFiles/RunUAT.sh BuildGraph \
     -script="Engine/Build/InstalledEngineBuild.xml" \
     -target="Make Installed Build Linux" \
